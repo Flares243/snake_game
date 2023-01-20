@@ -17,16 +17,17 @@ clock = pygame.time.Clock()
 
 class SnakeEnviroment:
 	def __init__(s):
-		s.square_size = 20
-		s.window_square_ratio = 20
-		s.window_size = (
-    	s.square_size * s.window_square_ratio,
-     	s.square_size * s.window_square_ratio
-    )
-		s.screen = pygame.display.set_mode(s.window_size)
-
 		s.fps = 10
 		s.game_speed = 2
+
+		s.square_size = 40
+		s.size = 10
+		s.window_size = (
+    	s.size * s.square_size,
+     	s.size * s.square_size
+    )
+
+		s.screen = pygame.display.set_mode(s.window_size)
 
 		s.initialize()
   
@@ -35,7 +36,7 @@ class SnakeEnviroment:
 		s.score = 0
 		s.snake = [
 			[s.square_size * 5, s.square_size * 5],
-			[s.square_size * 4, s.square_size * 5],
+			[s.square_size * 4, s.square_size * 5]
 		]
 		s.direction = const.RIGHT
 		s.food_spawn = False
@@ -77,11 +78,12 @@ class SnakeEnviroment:
 		clock.tick(s.fps * s.game_speed)
 
 	def spawn_food(s):
-		if not s.food_spawn:    
+		if not s.food_spawn:
 			s.food_position = [
-				random.randrange(1, (s.window_size[0] // s.square_size)) * s.square_size,
-				random.randrange(1, (s.window_size[1] // s.square_size)) * s.square_size
+				random.randrange(0, s.window_size[0] - s.square_size, s.square_size),
+				random.randrange(0, s.window_size[1] - s.square_size, s.square_size)
 			]
+   
 			s.food_spawn = True
 
 	def check_eat_food(s):
@@ -125,9 +127,50 @@ class SnakeEnviroment:
 		elif s.direction == const.RIGHT:
 			s.snake[0][0] += s.square_size
 
+	def get_observation(s):
+		observation = np.zeros((
+    	s.size + 2,
+     	s.size + 2,
+      3,
+    ))
+  
+		# # Fill in wall observation
+		observation[0, :, :] = [1, 0, 0]
+		observation[-1, :, :] = [1, 0, 0]
+		observation[:, 0, :] = [1, 0, 0]
+		observation[:, -1, :] = [1, 0, 0]
+
+		# Fill in food position
+		x_food_shrink = (s.food_position[0] // s.square_size) + 1
+		y_food_shrink = (s.food_position[1] // s.square_size) + 1
+
+		# print(x_food_shrink)
+		# print(y_food_shrink)
+  
+		observation[x_food_shrink, y_food_shrink] = [0, 1, 0]
+
+		# Fill in snake position
+		for x, y in s.snake:
+			x_shrink = (x // s.square_size) + 1
+			y_shrink = (y // s.square_size) + 1
+   
+			# print(x_shrink)
+			# print(y_shrink)
+
+			observation[x_shrink, y_shrink] = [0, 0, 1]
+
+		return observation
+
+	def get_reward(s):
+		if s.game_over:
+			return -1
+		if not s.food_spawn:
+			return 10
+		return 0
+
 	def step(s, action):
 		s.update_snake_direction(action)
-		
+
 		# Must check_eat_food right after move_snake
 		s.move_snake()
 		s.check_eat_food()
@@ -139,44 +182,7 @@ class SnakeEnviroment:
 		s.spawn_food()
 
 		observation = s.get_observation()
+  
+		print(s.game_over)
 
 		return observation, reward, s.game_over, {}
-
-	def get_observation(s):
-		observation = np.zeros((s.window_square_ratio, s.window_square_ratio, 2))
-
-		# Fill in snake position
-		for x, y in s.snake:
-			print(x)
-			print(y)
-			print(x / s.window_square_ratio)
-			print(y / s.window_square_ratio)
-
-			x_shrink = math.floor(x / (s.square_size * s.window_square_ratio) * 10)
-			y_shrink = math.floor(y / (s.square_size * s.window_square_ratio) * 10)
-
-			observation[x_shrink, y_shrink] = [1, 0]
-
-		# Fill in food position
-		x_food_shrink = math.floor(s.food_position[0] / (s.square_size * s.window_square_ratio) * 10)
-		y_food_shrink = math.floor(s.food_position[1] / (s.square_size * s.window_square_ratio) * 10)
-
-		# print(x_food_shrink)
-		# print(y_food_shrink)
-
-		observation[x_food_shrink, y_food_shrink] = [0, 1]
-
-		# Fill in wall observation
-		observation[0, :, :] = 1
-		observation[-1, :, :] = 1
-		observation[:, 0, :] = 1
-		observation[:, -1, :] = 1
-
-		return observation
-
-	def get_reward(s):
-		if s.game_over:
-			return -1
-		if not s.food_spawn:
-			return 1
-		return 0
