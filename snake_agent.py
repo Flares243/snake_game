@@ -1,13 +1,12 @@
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 
 from os import path
 
 from keras.models import load_model, Sequential
 from keras.layers import Dense, Dropout, Input
 from keras.activations import relu, softmax
-from keras.metrics import Accuracy
 
 from const import directions
 
@@ -15,12 +14,13 @@ class SnakeAgent:
 	def __init__(s) -> None:
 		s.agent_output = len(directions)
 		s.learning_rate = 0.0001
-		s.discount_factor = 0.9
+		s.discount_factor = 0.5
+		s.epsilon = 1
+		s.epsilon_min = 0.01
+		s.epsilon_decay = 0.99
+
 		s.model = s.build_model()
 		pass
-
-	def get_model(s):
-		return s.model
 
 	def build_model(s):
 		if path.exists('snake_ai.h5'):
@@ -28,31 +28,36 @@ class SnakeAgent:
 		else:
 			model = Sequential([
 				Input(shape=(432,)),
-				Dense(256, activation=relu),
-				Dropout(0.2),
-				Dense(128, activation=relu),
-				Dropout(0.2),
+				Dense(512, activation=relu),
+				Dropout(0.1),
+				Dense(320, activation=relu),
+				Dropout(0.1),
+				Dense(64, activation=relu),
+				Dropout(0.1),
 				Dense(s.agent_output, activation=softmax)
 			])
 
-			model.compile(
-				tf.optimizers.Adam(s.learning_rate),
-				loss = tf.losses.mean_squared_error
-			)
+		model.compile(
+			tf.optimizers.Adam(s.learning_rate),
+			loss = tf.losses.mean_squared_error
+		)
+
 		return model
 
-	def preprogess(s, state):
-		state = np.array(state)
-		# Reshape the state array into an (1, n) array
-		# with n is the number in 1 * n = total number of element in state array
-		state = state.reshape(1, -1)
-  
-		return state
-
 	def act(s, state):
+		# Decide whether to choose a random action or the action with the highest Q-value
+		# if random.random() <= s.epsilon:
+		# 		action = random.randint(0, s.agent_output-1)
+		# else:
 		action_probs = s.model.predict(state)
-		action = np.random.choice(s.agent_output, p=action_probs[0])
+		action =  np.argmax(action_probs[0])
+
 		return action
+
+	# Call this on training loop
+	def update_epsilon(s, episode):
+		if episode % 50 == 0:
+			s.epsilon *= s.epsilon_decay
 
 	def update_model(s, state, action, reward, done, next_state):
 		# Get the current Q-value for the state-action pair
@@ -64,7 +69,7 @@ class SnakeAgent:
 		else:
 			# Get the maximum Q-value for the next state
 			next_q_value = s.model.predict(next_state)
-			max_next_q_value = max(next_q_value[0])
+			max_next_q_value = np.argmax(next_q_value[0])
 
 			# Q(s, a) = Q(s, a) + α * (r + γ * max(Q(s', a')) - Q(s, a))
 			# Where:
@@ -73,9 +78,9 @@ class SnakeAgent:
 				# r is the reward received from taking action a in state s
 				# γ is the discount factor
 				# max(Q(s', a')) is the maximum estimated Q-value for the next state s' and all possible actions a'
-		
+
 				# Update the current Q-value using the Bellman equation
 			current_q_value[0][action] = current_q_value[0][action] + s.learning_rate * (reward + s.discount_factor * max_next_q_value - current_q_value[0][action])
 
-		# Fit the model with the updated Q-value for the current state-action pair
+    # Fit the model with the updated Q-value for the current state-action pair
 		s.model.fit(state, current_q_value, epochs=1, verbose=0)

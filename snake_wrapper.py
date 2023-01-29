@@ -1,24 +1,23 @@
 from snake_enviroment import SnakeEnviroment
 from snake_agent import SnakeAgent
-from keras.models import save_model
+from keras.models import load_model, Sequential
+import tensorflow as tf
 
 env = SnakeEnviroment()
 agent = SnakeAgent()
 
-play_rounds = 200
+agent.model.load_weights('snake_ai.pth')
 
-for play_round in range(play_rounds):
+play_rounds = 500
+
+for episole in range(play_rounds):
 	state = env.initialize()
-	state = agent.preprogess(state)
+	state = env.preprogess(state)
 
 	done = False
 
 	while not done:
 		action = agent.act(state)
 		next_state, reward, done, info = env.step(action)		
-		next_state = agent.preprogess(next_state)
-		agent.update_model(state, action, reward, done, next_state)
-		state = next_state
+		state = env.preprogess(next_state)
 		env.render()
-  
-save_model(agent.get_model(), 'snake_ai.h5')
